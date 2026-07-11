@@ -1,5 +1,6 @@
 package com.mraphaelpy.vertexbank.authservice.service;
 
+import com.mraphaelpy.vertexbank.authservice.dtos.TokenValidationResponse;
 import com.mraphaelpy.vertexbank.authservice.entity.UserCredential;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -9,6 +10,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -27,6 +29,12 @@ public class JwtService {
 
     @Value("${security.jwt.expiration-time}")
     private long jwtExpiration;
+
+    private final UserDetailsService userDetailsService;
+
+    public JwtService(UserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
@@ -66,11 +74,23 @@ public class JwtService {
         return jwtExpiration;
     }
 
-    private String buildToken(
-            Map<String, Object> extraClaims,
-            UserDetails userDetails,
-            long expiration
-    ) {
+    public TokenValidationResponse validateToken(String token) {
+        String email = extractUsername(token);
+        UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+
+        if (!isTokenValid(token, userDetails)) {
+            throw new RuntimeException("Token inválido ou expirado.");
+        }
+
+        return new TokenValidationResponse(
+                true,
+                email,
+                extractUserId(token),
+                extractRoles(token)
+        );
+    }
+
+    private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration) {
         return Jwts
                 .builder().claims(extraClaims)
                 .subject(userDetails.getUsername())
@@ -79,6 +99,7 @@ public class JwtService {
                 .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
+
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
@@ -105,3 +126,4 @@ public class JwtService {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }
+
