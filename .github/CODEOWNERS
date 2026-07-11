@@ -1,0 +1,6 @@
+*                       @VertexBank/security-core @VertexBank/devops-architects
+/AuthService/           @VertexBank/auth-team
+/UserService/           @VertexBank/user-team
+/.github/workflows/     @VertexBank/devops-architects
+/config/                @VertexBank/devops-architects
+/pom.xml                @VertexBank/devops-architects

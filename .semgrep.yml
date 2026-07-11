@@ -1,0 +1,33 @@
+rules:
+  - id: spring-boot-unsecured-actuator
+    pattern: |
+      management:
+        endpoints:
+          web:
+            exposure:
+              include: "*"
+    message: "Exposing all actuator endpoints (*) can lead to sensitive information disclosure. Please list only required endpoints."
+    languages: [yaml]
+    severity: WARNING
+
+  - id: spring-hardcoded-jwt-secret
+    pattern: |
+      @Value("$<...>")
+      private String jwtSecret = "$VALUE";
+    message: "Do not hardcode JWT secrets. Inject them from environment variables or a secure vault."
+    languages: [java]
+    severity: ERROR
+
+  - id: spring-cors-allow-all
+    pattern: |
+      $CFG.addAllowedOrigin("*");
+    message: "CORS configuration allows all origins (*). This is insecure for production. Use specific, trusted origins."
+    languages: [java]
+    severity: ERROR
+
+  - id: jdbc-sql-injection-raw-string
+    pattern: |
+      $CONN.createStatement().executeQuery("..." + $VAR + "...")
+    message: "SQL Injection vulnerability. Avoid constructing SQL queries via string concatenation. Use PreparedStatement instead."
+    languages: [java]
+    severity: ERROR

@@ -1,0 +1,19 @@
+title = "VertexBank Gitleaks Configuration"
+
+[allowlist]
+description = "Global allowlist for non-sensitive data and test files"
+paths = [
+    '''src/test/resources/.*''',
+    '''node_modules/.*''',
+    '''build/.*'''
+]
+regexes = [
+    '''postgres://postgres:postgres@.*''',
+    '''jdbc:postgresql://.*password=postgres'''
+]
+
+[[rules]]
+id = "custom-jwt-secret"
+description = "VertexBank JWT Private Key or Secret Key"
+regex = '''(?i)(jwt_secret|jwt_private_key|jwt\.secret|jwt\.private-key)\s*[:=]\s*['"]?[a-zA-Z0-9_\-\+\/=]{32,}['"]?'''
+tags = ["key", "jwt", "token"]

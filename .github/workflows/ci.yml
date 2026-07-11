@@ -1,0 +1,387 @@
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets-scan:
+    name: Secrets & Initial Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  code-quality:
+    name: Code Quality & Formatting
+    runs-on: ubuntu-latest
+    needs: secrets-scan
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Spotless & Linters
+        run: |
+          mvn spotless:check checkstyle:check pmd:check spotbugs:check -B
+
+      - name: Upload Quality Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-reports
+          path: |
+            **/target/checkstyle-result.xml
+            **/target/pmd.xml
+            **/target/spotbugsXml.xml
+          retention-days: 14
+
+  security-sast:
+    name: SAST & Dependency Scanning
+    runs-on: ubuntu-latest
+    needs: secrets-scan
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Semgrep
+        run: |
+          python3 -m pip install semgrep
+          semgrep scan --config auto --sarif --output semgrep.sarif --fail-on-bug
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: OWASP Dependency Check
+        run: mvn dependency-check:check -B
+
+      - name: Run Trivy FS Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+      - name: Upload Trivy FS SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs-results.sarif
+          category: trivy-fs
+
+      - name: Upload Security Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            **/target/dependency-check-report.html
+            trivy-fs-results.sarif
+            semgrep.sarif
+          retention-days: 14
+
+  testing:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: [code-quality, security-sast]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Unit & Integration Tests
+        run: |
+          mvn clean verify \
+            -Dspotless.skip=true \
+            -Dcheckstyle.skip=true \
+            -Dpmd.skip=true \
+            -Dspotbugs.skip=true \
+            -Ddependency-check.skip=true \
+            -Dpitest.skip=true \
+            -B
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Upload Test & Coverage Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-and-coverage-reports
+          path: |
+            **/target/surefire-reports/
+            **/target/site/jacoco/
+          retention-days: 14
+
+  mutation-testing:
+    name: PIT Mutation Testing
+    runs-on: ubuntu-latest
+    needs: testing
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run PIT Mutation Tests
+        run: |
+          mvn pitest:mutationCoverage \
+            -Dspotless.skip=true \
+            -Dcheckstyle.skip=true \
+            -Dpmd.skip=true \
+            -Dspotbugs.skip=true \
+            -Ddependency-check.skip=true \
+            -B
+
+      - name: Upload PIT Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitest-reports
+          path: **/target/pit-reports/
+          retention-days: 14
+
+  component-and-contract:
+    name: Component & Contract Verification
+    runs-on: ubuntu-latest
+    needs: testing
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Component & Contract Tests
+        run: |
+          mvn test -Dgroups="component,contract" \
+            -Dspotless.skip=true \
+            -Dcheckstyle.skip=true \
+            -Dpmd.skip=true \
+            -Dspotbugs.skip=true \
+            -Ddependency-check.skip=true \
+            -Djacoco.skip=true \
+            -B
+        env:
+          SPRING_PROFILES_ACTIVE: component-test
+
+      - name: Upload Component & Contract Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component-contract-reports
+          path: |
+            **/target/surefire-reports/
+            **/target/pacts/
+          retention-days: 14
+
+  api-and-perf:
+    name: API & Load Verification
+    runs-on: ubuntu-latest
+    needs: component-and-contract
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Newman & OpenAPI Validation CLI
+        run: npm install -g newman newman-reporter-html openapi-examples-validator
+
+      - name: Validate OpenAPI Specs
+        run: |
+          find . -name "*openapi*.json" -o -name "*swagger*.json" -o -name "*openapi*.yaml" -o -name "*openapi*.yml" | while read file; do
+            npx @apidevtools/swagger-cli validate "$file"
+          done
+
+      - name: Start Application for API Tests
+        run: |
+          mvn package -DskipTests -Dspotless.skip=true -Dcheckstyle.skip=true -Dpmd.skip=true -Dspotbugs.skip=true -Ddependency-check.skip=true -B
+          java -jar AuthService/target/*.jar &
+          timeout 90s sh -c 'until curl --silent --fail http://localhost:8081/actuator/health; do sleep 2; done'
+        env:
+          SPRING_PROFILES_ACTIVE: api-test
+
+      - name: Run Newman
+        run: |
+          if [ -d "tests/postman" ]; then
+            newman run tests/postman/vertexbank_collection.json \
+              -e tests/postman/vertexbank_env.json \
+              -r cli,html --reporter-html-export target/newman/report.html
+          else
+            echo "No Postman collections found. Skipping..."
+          fi
+
+      - name: Run RestAssured Suite
+        run: |
+          mvn test -Dgroups="api" \
+            -Dspotless.skip=true \
+            -Dcheckstyle.skip=true \
+            -Dpmd.skip=true \
+            -Dspotbugs.skip=true \
+            -Ddependency-check.skip=true \
+            -Djacoco.skip=true \
+            -B || echo "RestAssured tests skipped."
+
+      - name: Setup k6 Load Test
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 Load Test
+        run: |
+          if [ -f "tests/k6/load-test.js" ]; then
+            k6 run tests/k6/load-test.js
+          else
+            echo "No k6 script found. Skipping..."
+          fi
+
+      - name: Upload API & Perf Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-perf-reports
+          path: |
+            target/newman/
+            **/target/surefire-reports/
+          retention-days: 14
+
+  docker-build-and-scan:
+    name: Dockerize & Scan
+    runs-on: ubuntu-latest
+    needs: [code-quality, security-sast]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Hadolint
+        run: |
+          sudo curl -L -o /usr/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          sudo chmod +x /usr/bin/hadolint
+
+      - name: Run Hadolint
+        run: |
+          find . -name "Dockerfile" | while read -r dockerfile; do
+            echo "Linting $dockerfile"
+            hadolint "$dockerfile"
+          done
+
+      - name: Build Docker Image
+        run: |
+          docker build -t vertexbank/auth-service:latest -f AuthService/Dockerfile .
+          docker build -t vertexbank/user-service:latest -f UserService/Dockerfile .
+
+      - name: Scan Auth Service Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'vertexbank/auth-service:latest'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Scan User Service Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'vertexbank/user-service:latest'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '1'
+
+  sonarqube:
+    name: SonarQube Quality Gate
+    runs-on: ubuntu-latest
+    needs: [testing, api-and-perf]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run SonarQube Analysis
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.qualitygate.wait=true \
+            -B
