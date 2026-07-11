@@ -195,7 +195,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pitest-reports
-          path: **/target/pit-reports/
+          path: '**/target/pit-reports/'
           retention-days: 14
 
   component-and-contract:
