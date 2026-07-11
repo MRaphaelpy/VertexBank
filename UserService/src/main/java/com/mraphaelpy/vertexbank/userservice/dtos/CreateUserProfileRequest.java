@@ -1,7 +1,5 @@
 package com.mraphaelpy.vertexbank.userservice.dtos;
 
-import com.mraphaelpy.vertexbank.userservice.entity.Address;
-import com.mraphaelpy.vertexbank.userservice.entity.Phone;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

@@ -79,7 +79,7 @@ public class JwtService {
         UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
         if (!isTokenValid(token, userDetails)) {
-            throw new RuntimeException("Token inválido ou expirado.");
+            throw new org.springframework.security.authentication.BadCredentialsException("Token inválido ou expirado.");
         }
 
         return new TokenValidationResponse(

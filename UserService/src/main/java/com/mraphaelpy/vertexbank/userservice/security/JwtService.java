@@ -54,6 +54,10 @@ public class JwtService {
     }
 
     private SecretKey getSignInKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
+        try {
+            return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("Invalid security.jwt.secret-key: expected Base64-encoded key material", ex);
+        }
     }
 }
