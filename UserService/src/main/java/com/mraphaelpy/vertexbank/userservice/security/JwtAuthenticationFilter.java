@@ -1,5 +1,6 @@
 package com.mraphaelpy.vertexbank.userservice.security;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -37,9 +39,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
 
         try {
-            if (jwtService.isTokenValid(token)) {
-                String email = jwtService.extractUsername(token);
-                List<String> roles = jwtService.extractRoles(token);
+            Claims claims = jwtService.extractClaims(token);
+            if (claims != null && !claims.isEmpty() && jwtService.isClaimsNotExpired(claims)) {
+                String email = claims.getSubject();
+                
+                @SuppressWarnings("unchecked")
+                List<String> roles = claims.get("roles", List.class);
 
                 List<SimpleGrantedAuthority> authorities = roles == null
                         ? List.of()
@@ -48,8 +53,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(email, null, authorities);
 
-
-                request.setAttribute("userId", jwtService.extractUserId(token));
+                String userIdStr = claims.get("userId", String.class);
+                UUID userId = userIdStr != null ? UUID.fromString(userIdStr) : null;
+                request.setAttribute("userId", userId);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
