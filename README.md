@@ -37,10 +37,11 @@ Responsável por toda a camada de autenticação e autorização da plataforma.
 - Roles: `ROLE_USER`, `ROLE_ADMIN`
 - Banco: `auth_db`
 
-### User Service *(em desenvolvimento)*
+### User Service `(porta 8082)`
 Responsável pelos dados pessoais dos usuários.
 
-- Perfil, endereço e telefone
+- Criação e atualização de perfil (nome, CPF, data de nascimento, endereço e telefones)
+- Autenticação stateless via JWT — o `userId` é extraído do token sem consultar o Auth Service
 - Banco: `user_db`
 
 ### Account Service *(planejado)*
@@ -83,6 +84,7 @@ Responsável pelo gerenciamento de cartões.
 | Apache Kafka | Mensageria assíncrona |
 | PostgreSQL | Banco de dados de cada serviço |
 | Docker Compose | Orquestração local |
+| MapStruct | Mapeamento entre entidades e DTOs |
 | Springdoc OpenAPI | Documentação dos endpoints |
 | Prometheus + Grafana | Observabilidade e métricas |
 | Loki | Agregação de logs |
@@ -90,27 +92,21 @@ Responsável pelo gerenciamento de cartões.
 
 ---
 
-## Como rodar o Auth Service
+## Como rodar
 
 **Pré-requisitos:** Docker, Java 17 e Maven instalados.
 
 ```bash
-# Subir o banco
+# Em cada serviço, suba o banco e depois a aplicação
 docker compose up -d
-
-# Rodar a aplicação
 ./mvnw spring-boot:run
 ```
 
-A aplicação sobe na porta `8081`. A documentação dos endpoints fica disponível em:
+### Auth Service `(porta 8081)`
 
 ```
 http://localhost:8081/swagger-ui/index.html
 ```
-
-### Variáveis de ambiente
-
-As configurações sensíveis podem ser sobrescritas via variáveis de ambiente. Os valores abaixo são os defaults usados em desenvolvimento:
 
 | Variável | Default |
 |---|---|
@@ -121,9 +117,24 @@ As configurações sensíveis podem ser sobrescritas via variáveis de ambiente.
 | `JWT_EXPIRATION` | `3600000` (1 hora) |
 | `JWT_REFRESH_EXPIRATION` | `604800000` (7 dias) |
 
+### User Service `(porta 8082)`
+
+```
+http://localhost:8082/swagger-ui/index.html
+```
+
+| Variável | Default |
+|---|---|
+| `DB_URL` | `jdbc:postgresql://localhost:5433/user_db` |
+| `DB_USER` | `postgres` |
+| `DB_PASS` | `postgres` |
+| `JWT_SECRET` | *(mesma do Auth Service)* |
+
 ---
 
-## Endpoints do Auth Service
+## Endpoints
+
+### Auth Service
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -133,12 +144,32 @@ As configurações sensíveis podem ser sobrescritas via variáveis de ambiente.
 | `POST` | `/auth/logout` | Invalida o refresh token |
 | `GET` | `/auth/validate` | Valida o JWT (uso interno do Gateway) |
 
+### User Service
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/users` | Cria o perfil do usuário autenticado |
+| `GET` | `/users/me` | Retorna o perfil do usuário autenticado |
+| `PUT` | `/users/me` | Atualiza o perfil do usuário autenticado |
+
+---
+
+## Testando com Postman
+
+Uma collection completa está disponível na raiz do projeto:
+
+```
+VertexBank.postman_collection.json
+```
+
+Ela captura o token automaticamente após o login e já injeta o `Authorization` header em todas as requisições do User Service.
+
 ---
 
 ## Ordem de desenvolvimento
 
-1. Auth Service
-2. User Service
+1. Auth Service ✓
+2. User Service ✓
 3. API Gateway
 4. Account Service
 5. Transaction Service
