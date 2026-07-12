@@ -1,5 +1,6 @@
 package com.mraphaelpy.vertexbank.authservice.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.mraphaelpy.vertexbank.authservice.enums.RoleName;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -32,6 +33,7 @@ public class Role {
     @Column(nullable = false, unique = true)
     private RoleName name;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
     private Set<UserRole> userRoles = new HashSet<>();
 

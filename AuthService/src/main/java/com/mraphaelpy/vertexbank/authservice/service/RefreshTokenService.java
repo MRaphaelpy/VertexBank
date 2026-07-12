@@ -1,5 +1,6 @@
 package com.mraphaelpy.vertexbank.authservice.service;
 
+import com.mraphaelpy.vertexbank.authservice.dtos.RefreshTokenResponse;
 import com.mraphaelpy.vertexbank.authservice.entity.RefreshToken;
 import com.mraphaelpy.vertexbank.authservice.repository.RefreshTokenRepository;
 import com.mraphaelpy.vertexbank.authservice.repository.UserCredentialRepository;
@@ -53,9 +54,10 @@ public class RefreshTokenService {
         return token;
     }
 
-    public String refreshAccessToken(String requestToken) {
+    public RefreshTokenResponse refreshAccessToken(String requestToken) {
         RefreshToken refreshToken = findByToken(requestToken);
-        return jwtService.generateToken(refreshToken.getUserCredential());
+        String newToken = jwtService.generateToken(refreshToken.getUserCredential());
+        return new RefreshTokenResponse(newToken);
     }
 
     public void logout(String requestToken) {

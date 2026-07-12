@@ -2,6 +2,7 @@ package com.mraphaelpy.vertexbank.authservice.service;
 
 import com.mraphaelpy.vertexbank.authservice.dtos.LoginRequestDTO;
 import com.mraphaelpy.vertexbank.authservice.dtos.LoginResponse;
+import com.mraphaelpy.vertexbank.authservice.dtos.RegisterResponse;
 import com.mraphaelpy.vertexbank.authservice.entity.RefreshToken;
 import com.mraphaelpy.vertexbank.authservice.entity.Role;
 import com.mraphaelpy.vertexbank.authservice.entity.UserCredential;
@@ -42,7 +43,7 @@ public class AuthenticationService {
         this.refreshTokenService = refreshTokenService;
     }
 
-    public UserCredential signup(RegisterRequestDTO input) {
+    public RegisterResponse signup(RegisterRequestDTO input) {
 
         if (userCredentialRepository.existsByEmail(input.getEmail())) {
             throw new EmailAlreadyInUseException(input.getEmail());
@@ -52,7 +53,6 @@ public class AuthenticationService {
                 .orElseThrow(() -> new RuntimeException("Role USER not found. Run data seeder."));
 
         UserCredential userCredential = new UserCredential()
-                .setId(UUID.randomUUID())
                 .setUserId(UUID.randomUUID())
                 .setEmail(input.getEmail())
                 .setCreatedAt(Instant.now())
@@ -63,7 +63,8 @@ public class AuthenticationService {
         userRoleAssoc.setRole(userRole);
         userCredential.getRoles().add(userRoleAssoc);
 
-        return userCredentialRepository.save(userCredential);
+        UserCredential saved = userCredentialRepository.save(userCredential);
+        return new RegisterResponse(saved.getId(), saved.getUserId(), saved.getEmail());
     }
 
     public LoginResponse authenticate(LoginRequestDTO input) {
