@@ -1,5 +1,7 @@
 # VertexBank
 
+[![CI](https://github.com/MRaphaelpy/VertexBank/actions/workflows/ci.yml/badge.svg)](https://github.com/MRaphaelpy/VertexBank/actions/workflows/ci.yml)
+
 Projeto de estudo de arquitetura de microsserviços desenvolvido com Spring Boot. O objetivo é simular o backend de um banco digital, cobrindo os principais conceitos exigidos no mercado: arquitetura limpa (SOLID, CQRS), autenticação com JWT, comunicação síncrona entre serviços via OpenFeign, API Gateway, mensageria com Kafka, observabilidade e resiliência.
 
 ---
