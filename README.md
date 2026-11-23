@@ -90,6 +90,22 @@ Responsável pelas movimentações financeiras.
 
 ## Como Rodar
 
+### Com Docker (recomendado)
+
+**Pré-requisito:** Docker com Docker Compose v2.
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose ps
+docker compose logs -f account-service
+docker compose down
+```
+
+O sistema fica disponível pelo API Gateway em `http://localhost:8080`. Para acompanhar os containers num painel de terminal, use o [lazydocker](https://github.com/jesseduffield/lazydocker).
+
+### Localmente (sem Docker)
+
 **Pré-requisitos:** Banco de Dados PostgreSQL (rodando nas portas 5432 e 5433 conforme os `application.properties`), Docker (opcional), Java 17 e Maven.
 
 Para rodar os serviços, navegue até a pasta de cada um e inicie com o Maven:
