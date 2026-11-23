@@ -58,4 +58,19 @@ public class GatewayConfig {
                 .filter(authenticationFilter.authenticate())
                 .build();
     }
+
+    @Bean
+    public RouterFunction<ServerResponse> apiDocsRoutes() {
+        return apiDocsRoute("auth", authUrl)
+                .and(apiDocsRoute("users", userUrl))
+                .and(apiDocsRoute("accounts", accountUrl));
+    }
+
+    private RouterFunction<ServerResponse> apiDocsRoute(String service, String serviceUrl) {
+        return route(service + "-api-docs")
+                .route(path("/api-docs/" + service), http())
+                .before(BeforeFilterFunctions.uri(URI.create(serviceUrl)))
+                .before(BeforeFilterFunctions.setPath("/v3/api-docs"))
+                .build();
+    }
 }

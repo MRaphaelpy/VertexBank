@@ -32,6 +32,8 @@ Cada serviço possui seu próprio banco de dados PostgreSQL, seguindo o princíp
 Porta de entrada única para o sistema.
 - Roteamento inteligente para os microsserviços (`/auth/**`, `/users/**`, `/accounts/**`).
 - Filtro de autenticação global interceptando requisições e validando tokens JWT diretamente com o Auth Service.
+- CORS centralizado para o front-end, com origens configuráveis pela variável `CORS_ALLOWED_ORIGINS` (padrão: `http://localhost:5173,http://localhost:3000`).
+- Swagger UI unificado com a documentação de todos os serviços.
 
 ### Auth Service `(porta 8081)`
 Responsável por toda a camada de autenticação e autorização da plataforma.
@@ -128,6 +130,18 @@ Certifique-se de exportar ou configurar as variáveis requeridas, como a chave d
 | `GET` | `/accounts/{id}/balance` | Consulta saldo atômico |
 | `PUT` | `/accounts/{id}/balance` | (Interno) Executa Depósito ou Saque na conta |
 | `PUT` | `/accounts/{id}/deactivate` | Desativa a conta bancária |
+
+---
+
+## Documentação da API
+
+Com os serviços rodando, acesse o Swagger UI unificado pelo Gateway:
+
+```
+http://localhost:8080/swagger-ui.html
+```
+
+Use o seletor no topo da página para alternar entre Auth, User e Account Service. Para chamar endpoints protegidos, faça login em `/auth/login`, clique em **Authorize** e cole o token JWT.
 
 ---
 
